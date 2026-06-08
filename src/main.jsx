@@ -3,7 +3,13 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
-import { testWeatherSlice, testThresholds, testBootThresholds } from './devTest.js';
+import {
+  testWeatherSlice,
+  testThresholds,
+  testBootThresholds,
+  testRecommendations,
+  testRecommendationsLive,
+} from './devTest.js';
 import { bootClimatology } from './core/thresholds.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
@@ -25,9 +31,11 @@ if (import.meta.env.DEV) {
   window.testWeatherSlice = testWeatherSlice;
   window.testThresholds = testThresholds;
   window.testBootThresholds = testBootThresholds;
+  window.testRecommendations = testRecommendations;
+  window.testRecommendationsLive = testRecommendationsLive;
 
   console.info(
-    '[WeatherWise] dev mode — try window.testWeatherSlice(), window.testThresholds(), or window.testBootThresholds().'
+    '[WeatherWise] dev mode — try window.testRecommendations(), window.testRecommendationsLive(), window.testWeatherSlice(), window.testThresholds(), or window.testBootThresholds().'
   );
   console.info('[WeatherWise] climatology boot:', bootResult);
 }

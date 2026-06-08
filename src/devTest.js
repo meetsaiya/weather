@@ -1,6 +1,9 @@
 import { fetchHourlyWeather, sliceHoursByKeys } from './core/weatherEngine.js';
 import { getHoursInWindow, getWorstHour, getWeightedAverage } from './utils/timeUtils.js';
 import { bootClimatology, loadClimatology, getThresholds } from './core/thresholds.js';
+import { aggregateExposure } from './core/exposureEngine.js';
+import { generateRecommendations } from './core/recommendEngine.js';
+import { generatePlainEnglish } from './core/plainEnglish.js';
 
 const MUMBAI = { latitude: 19.076, longitude: 72.877, label: 'Mumbai' };
 
@@ -54,6 +57,75 @@ export async function testThresholds() {
   console.table(getThresholds());
   console.groupEnd();
   return result;
+}
+
+/**
+ * Dev-only smoke test for the recommendation pipeline. Uses the canonical
+ * scenario from Session 2:
+ *
+ *   - Window 17:00–19:00, 20-minute trip, riskTolerance: 'high'
+ *   - Mock weather: 65% rain prob, 3 mm/hr, 45 km/h wind
+ *
+ * Expected: raincoat carried, umbrella suppressed by the wind conflict.
+ */
+export function testRecommendations() {
+  console.info('[testRecommendations] running canonical Session 2 scenario …');
+
+  const mockAggregated = {
+    hour: '2026-06-08T17:00',
+    precipitation_probability: 65,
+    precipitation: 3,
+    wind_speed_10m: 45,
+    uv_index: 2,
+    temperature_2m: 24,
+    apparent_temperature: 25,
+  };
+
+  const recs = generateRecommendations({
+    aggregated: mockAggregated,
+    riskTolerance: 'high',
+    tripDurationMins: 20,
+  });
+
+  const english = generatePlainEnglish(recs, 'evening commute');
+
+  console.group('[testRecommendations] result');
+  console.table(recs);
+  console.log('plain English:', english.summary);
+  console.groupEnd();
+
+  const umbrella = recs.find((r) => r.item === 'umbrella');
+  const raincoat = recs.find((r) => r.item === 'raincoat');
+  const ok = umbrella?.carry === false && raincoat?.carry === true;
+  if (ok) console.info('[testRecommendations] ✓ raincoat carried, umbrella suppressed');
+  else console.warn('[testRecommendations] ✗ unexpected output');
+
+  return { recommendations: recs, plainEnglish: english, passed: ok };
+}
+
+/**
+ * End-to-end variant: real Mumbai forecast → exposure → recommendations.
+ */
+export async function testRecommendationsLive() {
+  console.info('[testRecommendationsLive] fetching live forecast for Mumbai …');
+  const hourly = await fetchHourlyWeather({ latitude: 19.076, longitude: 72.877 });
+  const exposure = aggregateExposure({
+    userWindow: { startTime: '17:00', endTime: '19:00', tripDurationMins: 20, riskTolerance: 'medium' },
+    hourlyWeatherArray: hourly,
+  });
+  const recs = generateRecommendations({
+    aggregated: exposure.aggregatedWeather,
+    riskTolerance: exposure.riskTolerance,
+    tripDurationMins: 20,
+    location: { latitude: 19.076, longitude: 72.877 },
+  });
+  const english = generatePlainEnglish(recs, 'evening commute');
+  console.group('[testRecommendationsLive] result');
+  console.log('aggregated:', exposure.aggregatedWeather);
+  console.table(recs);
+  console.log('plain English:', english.summary);
+  console.groupEnd();
+  return { exposure, recommendations: recs, plainEnglish: english };
 }
 
 /**
