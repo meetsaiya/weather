@@ -124,29 +124,77 @@ export function testRecommendations() {
   return { recommendations: recs, plainEnglish: english, passed: ok };
 }
 
-/**
- * End-to-end variant: real Mumbai forecast → exposure → recommendations.
- */
-export async function testRecommendationsLive() {
-  console.info('[testRecommendationsLive] fetching live forecast for Mumbai …');
-  const hourly = await fetchHourlyWeather({ latitude: 19.076, longitude: 72.877 });
-  const exposure = aggregateExposure({
-    userWindow: { startTime: '17:00', endTime: '19:00', tripDurationMins: 20, riskTolerance: 'medium' },
-    hourlyWeatherArray: hourly,
+function getDeviceLocation() {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      reject(new Error('Geolocation not supported in this environment.'));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          label: 'Device location',
+          accuracyMeters: pos.coords.accuracy,
+        }),
+      (err) => reject(new Error(`Geolocation failed: ${err.message}`)),
+      { timeout: 10000, enableHighAccuracy: false }
+    );
   });
+}
+
+/**
+ * End-to-end: live forecast → exposure → recommendations for a chosen region.
+ * Loads the climatology for that region first so thresholds are
+ * location-appropriate before recommendations fire.
+ *
+ *   await testRecommendationsLive()              // device geolocation
+ *   await testRecommendationsLive('london')      // preset
+ *   await testRecommendationsLive('Phoenix')
+ *   await testRecommendationsLive(35.689, 139.692, 'Tokyo')
+ *   await testRecommendationsLive({ latitude: 48.86, longitude: 2.35, label: 'Paris' })
+ */
+export async function testRecommendationsLive(arg, lon, label) {
+  let loc;
+  if (arg == null) {
+    console.info('[testRecommendationsLive] no location given — requesting device location …');
+    loc = await getDeviceLocation();
+    console.info('[testRecommendationsLive] device location:', loc);
+  } else {
+    loc = resolveLocation(arg, lon, label);
+  }
+
+  console.info('[testRecommendationsLive] loading climatology for', loc.label, '…');
+  await loadClimatology({ latitude: loc.latitude, longitude: loc.longitude });
+
+  console.info('[testRecommendationsLive] fetching live forecast for', loc.label, '…');
+  const hourly = await fetchHourlyWeather({ latitude: loc.latitude, longitude: loc.longitude });
+
+  const userWindow = {
+    startTime: '17:00',
+    endTime: '19:00',
+    tripDurationMins: 20,
+    riskTolerance: 'medium',
+  };
+  const exposure = aggregateExposure({ userWindow, hourlyWeatherArray: hourly });
   const recs = generateRecommendations({
     aggregated: exposure.aggregatedWeather,
     riskTolerance: exposure.riskTolerance,
-    tripDurationMins: 20,
-    location: { latitude: 19.076, longitude: 72.877 },
+    tripDurationMins: userWindow.tripDurationMins,
+    location: { latitude: loc.latitude, longitude: loc.longitude },
   });
   const english = generatePlainEnglish(recs, 'evening commute');
-  console.group('[testRecommendationsLive] result');
+
+  console.group(`[testRecommendationsLive] ${loc.label}`);
+  console.log('window:', userWindow);
   console.log('aggregated:', exposure.aggregatedWeather);
+  console.log('thresholds in use:', getThresholds());
   console.table(recs);
   console.log('plain English:', english.summary);
   console.groupEnd();
-  return { exposure, recommendations: recs, plainEnglish: english };
+
+  return { location: loc, exposure, recommendations: recs, plainEnglish: english };
 }
 
 function resolveLocation(arg, lon, label) {
