@@ -70,7 +70,8 @@ export function getThresholds() {
 
 const ARCHIVE_URL = 'https://archive-api.open-meteo.com/v1/archive';
 const CACHE_KEY_PREFIX = 'ww_climatology:';
-const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+const CACHE_TTL_MS = 1000 * 60 * 60 * 24 * 45; // 45 days
+const ARCHIVE_YEARS = 2;
 const WET_HOUR_MIN_MM = 0.1; // an hour with < 0.1mm is treated as dry
 
 /**
@@ -154,13 +155,16 @@ export function resetClimatology() {
 const cacheKey = (lat, lon) =>
   `${CACHE_KEY_PREFIX}${lat.toFixed(2)},${lon.toFixed(2)}`;
 
-function readCache(lat, lon) {
+function readCache(lat, lon, { allowStale = false } = {}) {
   try {
     const raw = globalThis.localStorage?.getItem(cacheKey(lat, lon));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed?.computedAt || Date.now() - parsed.computedAt > CACHE_TTL_MS) return null;
-    return parsed;
+    if (!parsed?.computedAt) return null;
+    const ageMs = Date.now() - parsed.computedAt;
+    const isStale = ageMs > CACHE_TTL_MS;
+    if (isStale && !allowStale) return null;
+    return { ...parsed, ageMs, isStale };
   } catch {
     return null;
   }
@@ -192,7 +196,7 @@ function isoDate(date) {
  * Fetch hourly precipitation + wind speed from the Open-Meteo archive for the
  * three years ending yesterday.
  */
-export async function fetchArchive({ latitude, longitude, years = 3 } = {}) {
+export async function fetchArchive({ latitude, longitude, years = ARCHIVE_YEARS } = {}) {
   const end = new Date();
   end.setDate(end.getDate() - 1); // archive is published with ~1 day lag
   const start = new Date(end);
@@ -221,15 +225,55 @@ export async function fetchArchive({ latitude, longitude, years = 3 } = {}) {
 }
 
 /**
- * Top-level entry point: load climatology-derived thresholds for a location.
- * Uses the localStorage cache (30 day TTL) when available and falls back to a
- * fresh archive fetch otherwise. The live bindings (RAIN_LIGHT, RAIN_MODERATE,
- * RAIN_HEAVY, WIND_HIGH) are updated as a side-effect.
+ * Production entry point: non-blocking. Off the critical path.
+ *
+ * Synchronously applies any cached climatology (even if past TTL) so the
+ * current session uses location-aware thresholds when possible. If the cache
+ * is missing or stale, a background fetch is kicked off — the result is
+ * written to the cache for the *next* session, but is NOT applied to the
+ * current session to avoid a mid-session threshold flip.
+ *
+ * Returns immediately. Errors during the background fetch are logged and
+ * swallowed; thresholds simply stay at the cached / default values.
  *
  * @param {object} params
  * @param {number} params.latitude
  * @param {number} params.longitude
- * @param {boolean} [params.forceRefresh=false] — bypass the cache
+ * @returns {{ source: 'cache'|'cache-stale'|'default', ageMs?: number, refreshing: boolean }}
+ */
+export function bootClimatology({ latitude, longitude } = {}) {
+  if (latitude == null || longitude == null) {
+    return { source: 'default', refreshing: false };
+  }
+
+  const cached = readCache(latitude, longitude, { allowStale: true });
+  if (cached) applyClimatology(cached);
+
+  const needsRefresh = !cached || cached.isStale;
+  if (needsRefresh) refreshInBackground({ latitude, longitude });
+
+  return {
+    source: cached ? (cached.isStale ? 'cache-stale' : 'cache') : 'default',
+    ...(cached ? { ageMs: cached.ageMs } : {}),
+    refreshing: needsRefresh,
+  };
+}
+
+function refreshInBackground({ latitude, longitude }) {
+  fetchArchive({ latitude, longitude })
+    .then(({ precipitation, windSpeed, range }) => {
+      const climatology = computeClimatology({ precipitation, windSpeed });
+      writeCache(latitude, longitude, { ...climatology, range });
+    })
+    .catch((err) => {
+      console.warn('[WeatherWise] background climatology refresh failed:', err?.message ?? err);
+    });
+}
+
+/**
+ * Awaitable variant. Fetches, caches, and applies climatology in one go.
+ * Used by dev tooling and tests; production should call `bootClimatology()`.
+ *
  * @returns {Promise<ReturnType<typeof getThresholds> & { source: 'cache'|'network'|'default' }>}
  */
 export async function loadClimatology({

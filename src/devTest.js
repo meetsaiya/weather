@@ -1,6 +1,6 @@
 import { fetchHourlyWeather, sliceHoursByKeys } from './core/weatherEngine.js';
 import { getHoursInWindow, getWorstHour, getWeightedAverage } from './utils/timeUtils.js';
-import { loadClimatology, getThresholds } from './core/thresholds.js';
+import { bootClimatology, loadClimatology, getThresholds } from './core/thresholds.js';
 
 const MUMBAI = { latitude: 19.076, longitude: 72.877, label: 'Mumbai' };
 
@@ -39,9 +39,9 @@ export async function testWeatherSlice() {
 }
 
 /**
- * Dev-only smoke test for climatology-derived thresholds. Loads 3 years of
- * Mumbai history (or reads from cache) and logs the resulting rain/wind
- * climatology values alongside the static thresholds.
+ * Dev-only smoke test for climatology-derived thresholds. Forces a synchronous
+ * fetch of 2 years of Mumbai history (or reads from cache) and logs the
+ * resulting rain/wind climatology values alongside the static thresholds.
  */
 export async function testThresholds() {
   console.info('[testThresholds] loading climatology for', MUMBAI.label, '…');
@@ -53,5 +53,27 @@ export async function testThresholds() {
   console.log('source:', result.source, result.meta ?? '');
   console.table(getThresholds());
   console.groupEnd();
+  return result;
+}
+
+/**
+ * Dev helper for the production boot path. Returns immediately — the
+ * background refresh (if any) writes to the cache for the next session.
+ */
+export function testBootThresholds() {
+  console.info('[testBootThresholds] booting climatology for', MUMBAI.label, '…');
+  const result = bootClimatology({
+    latitude: MUMBAI.latitude,
+    longitude: MUMBAI.longitude,
+  });
+  console.group('[testBootThresholds] result (synchronous)');
+  console.log('boot:', result);
+  console.table(getThresholds());
+  console.groupEnd();
+  if (result.refreshing) {
+    console.info(
+      '[testBootThresholds] background refresh in flight — refined values will apply on next session.'
+    );
+  }
   return result;
 }
