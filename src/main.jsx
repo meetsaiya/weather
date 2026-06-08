@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
 import { registerSW } from 'virtual:pwa-register';
-import { testWeatherSlice } from './devTest.js';
+import { testWeatherSlice, testThresholds } from './devTest.js';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -17,6 +17,9 @@ if ('serviceWorker' in navigator) {
 
 if (import.meta.env.DEV) {
   window.testWeatherSlice = testWeatherSlice;
+  window.testThresholds = testThresholds;
 
-  console.info('[WeatherWise] dev mode — call window.testWeatherSlice() in the console.');
+  console.info(
+    '[WeatherWise] dev mode — try window.testWeatherSlice() or window.testThresholds() in the console.'
+  );
 }
