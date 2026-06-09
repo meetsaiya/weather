@@ -29,6 +29,22 @@ function rainProbThresholdFor(riskTolerance) {
   return PROB_MEDIUM;
 }
 
+/**
+ * Apply the user's accumulated feedback nudge to the probability bar.
+ *
+ *   nudge > 0  → user finds recs helpful → relax → lower bar → more triggers
+ *   nudge < 0  → user finds recs unhelpful → tighten → higher bar → fewer
+ *
+ * Bounded to [-0.15, +0.15] upstream so the effective bar can swing roughly
+ * ±15% from baseline. Probability bar is clamped to [1, 99] so feedback can't
+ * disable triggers entirely or force them every hour.
+ */
+function applyNudge(probBar, nudge = 0) {
+  const clamped = Math.max(-0.15, Math.min(0.15, nudge));
+  const out = probBar * (1 - clamped);
+  return Math.max(1, Math.min(99, out));
+}
+
 function confidenceFor(prob, precip) {
   if (prob == null) return 'unlikely';
   if (prob > 60 && (precip ?? 0) >= RAIN_MODERATE) return 'likely';
@@ -53,6 +69,7 @@ export function generateRecommendations({
   riskTolerance = 'medium',
   tripDurationMins = 0,
   location,
+  thresholdNudge = 0,
   now = new Date(),
 } = {}) {
   if (!aggregated) return [];
@@ -73,7 +90,7 @@ export function generateRecommendations({
   const temp = aggregated.temperature_2m ?? null;
   const appTemp = aggregated.apparent_temperature ?? temp;
 
-  const probBar = rainProbThresholdFor(riskTolerance);
+  const probBar = applyNudge(rainProbThresholdFor(riskTolerance), thresholdNudge);
   const triggered = [];
 
   // Rain → umbrella, with optional raincoat layered on for high winds.

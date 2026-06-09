@@ -1,39 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useRoutine } from '../../hooks/useRoutine.js';
+import { getTodayDeviations, writeTodayDeviations } from '../../utils/deviationStore.js';
 
-const DEVIATION_KEY = 'ww_deviation_today';
-
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function readDeviations() {
-  try {
-    const raw = globalThis.localStorage?.getItem(DEVIATION_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    if (parsed?.date !== todayISO()) {
-      // Yesterday's overrides — clear them.
-      globalThis.localStorage?.removeItem(DEVIATION_KEY);
-      return {};
-    }
-    return parsed.overrides ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function writeDeviations(overrides) {
-  try {
-    globalThis.localStorage?.setItem(
-      DEVIATION_KEY,
-      JSON.stringify({ date: todayISO(), overrides })
-    );
-  } catch {
-    // ignore
-  }
-}
+const readDeviations = getTodayDeviations;
+const writeDeviations = writeTodayDeviations;
 
 export default function DeviationModal({ open, onClose }) {
   const { routine } = useRoutine();
@@ -137,8 +107,6 @@ export default function DeviationModal({ open, onClose }) {
   );
 }
 
-// Non-component accessor used by the Dashboard (Session 4) to merge overrides
-// into the routine before running recommendations.
-export function getTodayDeviations() {
-  return readDeviations();
-}
+// Re-export the storage accessor so older import paths still resolve.
+// New consumers should import from '../../utils/deviationStore.js' directly.
+export { getTodayDeviations } from '../../utils/deviationStore.js';

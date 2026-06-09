@@ -7,6 +7,7 @@ const HOURLY_FIELDS = [
   'uv_index',
   'temperature_2m',
   'apparent_temperature',
+  'weather_code',
 ];
 
 /**
@@ -75,6 +76,7 @@ export function parseHourly(payload) {
     uv_index: hourly.uv_index?.[i] ?? null,
     temperature_2m: hourly.temperature_2m?.[i] ?? null,
     apparent_temperature: hourly.apparent_temperature?.[i] ?? null,
+    weather_code: hourly.weather_code?.[i] ?? null,
   }));
 }
 
