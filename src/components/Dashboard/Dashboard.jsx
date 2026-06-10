@@ -9,6 +9,7 @@ import { applyDeviations } from '../../utils/deviations.js';
 import DaySummary from './DaySummary.jsx';
 import WindowCard, { windowStatus } from './WindowCard.jsx';
 import DeviationModal from '../Deviation/DeviationModal.jsx';
+import LocationPicker from '../Location/LocationPicker.jsx';
 
 function relativeTime(ms) {
   if (ms == null) return '—';
@@ -32,6 +33,7 @@ export default function Dashboard() {
   );
   const { thresholdNudge } = useFeedback();
   const [deviationOpen, setDeviationOpen] = useState(false);
+  const [locationOpen, setLocationOpen] = useState(false);
   const [, setDeviationsTick] = useState(0); // bump to re-merge when modal closes
   const closeDeviation = () => {
     setDeviationOpen(false);
@@ -65,9 +67,22 @@ export default function Dashboard() {
     <div className="min-h-screen p-6 max-w-md mx-auto pb-24">
       <header className="mb-4">
         <p className="text-xs uppercase tracking-wide text-slate-500">{todayLabel()}</p>
-        <h1 className="text-2xl font-semibold text-slate-100">
-          {routine.location?.label ?? 'WeatherWise'}
-        </h1>
+        <button
+          type="button"
+          onClick={() => setLocationOpen(true)}
+          className="group flex items-center gap-2 text-left -ml-1 px-1 py-0.5 rounded hover:bg-slate-800/60 transition"
+          aria-label="Change location"
+        >
+          <h1 className="text-2xl font-semibold text-slate-100">
+            {routine.location?.label ?? 'WeatherWise'}
+          </h1>
+          <span
+            className="text-slate-500 group-hover:text-sky-400 transition text-sm"
+            aria-hidden
+          >
+            ▾
+          </span>
+        </button>
         <div className="flex items-center gap-2 mt-1">
           <p className="text-xs text-slate-500">Updated {relativeTime(lastFetched)}</p>
           <button
@@ -159,6 +174,7 @@ export default function Dashboard() {
       </button>
 
       <DeviationModal open={deviationOpen} onClose={closeDeviation} />
+      <LocationPicker open={locationOpen} onClose={() => setLocationOpen(false)} />
     </div>
   );
 }
