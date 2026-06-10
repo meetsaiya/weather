@@ -10,6 +10,7 @@ import DaySummary from './DaySummary.jsx';
 import WindowCard, { windowStatus } from './WindowCard.jsx';
 import DeviationModal from '../Deviation/DeviationModal.jsx';
 import LocationPicker from '../Location/LocationPicker.jsx';
+import RoutineEditor from '../Routine/RoutineEditor.jsx';
 
 function relativeTime(ms) {
   if (ms == null) return '—';
@@ -27,13 +28,14 @@ function todayLabel(d = new Date()) {
 }
 
 export default function Dashboard() {
-  const { routine, resetRoutine } = useRoutine();
+  const { routine } = useRoutine();
   const { weatherData, isStale, isOffline, lastFetched, isLoading, error, refresh } = useWeather(
     routine.location
   );
   const { thresholdNudge } = useFeedback();
   const [deviationOpen, setDeviationOpen] = useState(false);
   const [locationOpen, setLocationOpen] = useState(false);
+  const [routineOpen, setRoutineOpen] = useState(false);
   const [, setDeviationsTick] = useState(0); // bump to re-merge when modal closes
   const closeDeviation = () => {
     setDeviationOpen(false);
@@ -148,12 +150,21 @@ export default function Dashboard() {
                 </p>
                 <button
                   type="button"
-                  onClick={resetRoutine}
+                  onClick={() => setRoutineOpen(true)}
                   className="mt-3 text-sm text-sky-400 hover:text-sky-300"
                 >
-                  Go to setup
+                  Add a window
                 </button>
               </div>
+            )}
+            {routine.windows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setRoutineOpen(true)}
+                className="w-full border border-dashed border-slate-700 hover:border-sky-400 hover:bg-sky-400/10 text-slate-400 hover:text-sky-300 py-3 rounded-xl min-h-[44px] transition text-sm"
+              >
+                + Add or edit windows
+              </button>
             )}
           </section>
         </>
@@ -175,6 +186,7 @@ export default function Dashboard() {
 
       <DeviationModal open={deviationOpen} onClose={closeDeviation} />
       <LocationPicker open={locationOpen} onClose={() => setLocationOpen(false)} />
+      <RoutineEditor open={routineOpen} onClose={() => setRoutineOpen(false)} />
     </div>
   );
 }
