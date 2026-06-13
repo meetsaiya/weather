@@ -15,6 +15,7 @@ import BriefBanner from './BriefBanner.jsx';
 import DeviationModal from '../Deviation/DeviationModal.jsx';
 import LocationPicker from '../Location/LocationPicker.jsx';
 import RoutineEditor from '../Routine/RoutineEditor.jsx';
+import InstallPrompt from '../Install/InstallPrompt.jsx';
 
 function relativeTime(ms) {
   if (ms == null) return '—';
@@ -116,6 +117,7 @@ export default function Dashboard() {
       </header>
 
       <BriefBanner brief={inAppBrief} onDismiss={dismissBanner} />
+      <InstallPrompt />
 
       {isStale && (
         <div
