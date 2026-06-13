@@ -1,13 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useRoutine } from '../../hooks/useRoutine.js';
 import { useWeather } from '../../hooks/useWeather.js';
 import { useFeedback } from '../../hooks/useFeedback.js';
+import { useNotifications } from '../../hooks/useNotifications.js';
 import { aggregateExposure } from '../../core/exposureEngine.js';
 import { generateRecommendations } from '../../core/recommendEngine.js';
 import { generatePlainEnglish } from '../../core/plainEnglish.js';
 import { applyDeviations } from '../../utils/deviations.js';
+import { buildDailyBrief } from '../../utils/dailyBrief.js';
 import DaySummary from './DaySummary.jsx';
 import WindowCard, { windowStatus } from './WindowCard.jsx';
+import Skeleton from './Skeleton.jsx';
+import BriefBanner from './BriefBanner.jsx';
 import DeviationModal from '../Deviation/DeviationModal.jsx';
 import LocationPicker from '../Location/LocationPicker.jsx';
 import RoutineEditor from '../Routine/RoutineEditor.jsx';
@@ -41,6 +45,19 @@ export default function Dashboard() {
     setDeviationOpen(false);
     setDeviationsTick((n) => n + 1);
   };
+
+  // Morning briefing: setTimeout-based notification while the tab is open,
+  // plus an in-app banner if today's notification time has already passed.
+  const computeBrief = useCallback(
+    () => buildDailyBrief({ routine, weatherData, thresholdNudge }),
+    [routine, weatherData, thresholdNudge]
+  );
+  const { inAppBrief, dismissBanner } = useNotifications({
+    enabled: !!routine.notificationsEnabled,
+    time: routine.notificationTime,
+    dataKey: lastFetched,
+    computeBrief,
+  });
 
   // Merge today's deviations and run the pipeline per window.
   const cards = useMemo(() => {
@@ -98,6 +115,8 @@ export default function Dashboard() {
         </div>
       </header>
 
+      <BriefBanner brief={inAppBrief} onDismiss={dismissBanner} />
+
       {isStale && (
         <div
           className="mb-4 bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm rounded-lg p-3"
@@ -113,7 +132,9 @@ export default function Dashboard() {
           className="mb-4 bg-rose-500/10 border border-rose-500/30 text-rose-200 text-sm rounded-lg p-3"
           role="alert"
         >
-          Couldn't load the forecast: {error}.
+          {isOffline
+            ? 'No forecast data available offline. Connect to get the latest.'
+            : `Couldn't load the forecast: ${error}.`}
           <button
             type="button"
             onClick={refresh}
@@ -170,11 +191,7 @@ export default function Dashboard() {
         </>
       )}
 
-      {!weatherData && isLoading && (
-        <div className="bg-slate-800 rounded-xl p-4 text-slate-400 text-sm animate-pulse">
-          Loading forecast…
-        </div>
-      )}
+      {!weatherData && isLoading && <Skeleton />}
 
       <button
         type="button"
