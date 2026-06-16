@@ -54,6 +54,7 @@ export default function InstallPrompt() {
   const [promptEvent, setPromptEvent] = useState(null);
   const [installed, setInstalled] = useState(isStandalone());
   const [iosOpen, setIosOpen] = useState(false);
+  const [genericOpen, setGenericOpen] = useState(false);
   const [dismissed, setDismissed] = useState(Date.now() < readDismissedUntil());
 
   useEffect(() => {
@@ -94,9 +95,14 @@ export default function InstallPrompt() {
     setDismissed(true);
   };
 
-  // iOS-only path: show instructions modal since Safari can't be prompted.
+  // Three install paths, in order of preference:
+  //   1. Native Chrome/Edge/Samsung prompt (beforeinstallprompt fired)
+  //   2. iOS Safari (Share → Add to Home Screen)
+  //   3. Generic instructions modal (covers desktop Chrome before its
+  //      engagement heuristic fires, desktop Firefox, etc.)
+  const showNativeButton = !!promptEvent;
   const showIOSPath = !promptEvent && isIOS() && isSafari();
-  if (!promptEvent && !showIOSPath) return null;
+  const showGenericPath = !promptEvent && !showIOSPath;
 
   return (
     <div
@@ -112,7 +118,7 @@ export default function InstallPrompt() {
             One tap to open the day's brief. Works offline once installed.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            {promptEvent && (
+            {showNativeButton && (
               <button
                 type="button"
                 onClick={handlePrompt}
@@ -130,6 +136,15 @@ export default function InstallPrompt() {
                 Show me how
               </button>
             )}
+            {showGenericPath && (
+              <button
+                type="button"
+                onClick={() => setGenericOpen(true)}
+                className="bg-sky-500 hover:bg-sky-400 text-white font-medium px-4 py-2 rounded-lg min-h-[44px] text-sm transition"
+              >
+                How to install
+              </button>
+            )}
             <button
               type="button"
               onClick={dismiss}
@@ -142,6 +157,7 @@ export default function InstallPrompt() {
       </div>
 
       {iosOpen && <IOSInstructions onClose={() => setIosOpen(false)} />}
+      {genericOpen && <GenericInstructions onClose={() => setGenericOpen(false)} />}
     </div>
   );
 }
@@ -210,6 +226,87 @@ function IOSInstructions({ onClose }) {
           Got it
         </button>
       </div>
+    </div>
+  );
+}
+
+function GenericInstructions({ onClose }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="install-instructions-title"
+      className="fixed inset-0 bg-black/70 flex items-end sm:items-center justify-center z-50 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-slate-900 w-full max-w-md rounded-t-2xl sm:rounded-2xl p-6 max-h-[85vh] overflow-y-auto">
+        <header className="flex items-center justify-between mb-4">
+          <h2 id="install-instructions-title" className="text-lg font-semibold text-slate-100">
+            Install WeatherWise
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-2xl text-slate-400 hover:text-slate-200 min-h-[44px] min-w-[44px] leading-none"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </header>
+
+        <Section title="Chrome / Edge on Android">
+          <p>
+            Look for the <span className="font-medium text-slate-100">"Install app"</span> banner
+            or open the menu (⋮) → <span className="font-medium text-slate-100">Install app</span>.
+          </p>
+        </Section>
+
+        <Section title="Chrome / Edge on desktop">
+          <p>
+            Click the install icon{' '}
+            <span className="inline-block bg-slate-800 px-1.5 py-0.5 rounded text-sky-300 text-xs">
+              ⊕
+            </span>{' '}
+            at the right of the address bar, or open the menu (⋮) →{' '}
+            <span className="font-medium text-slate-100">Install WeatherWise…</span>
+          </p>
+          <p className="text-slate-400 text-xs mt-1">
+            If the icon isn't there yet, refresh the page and interact for a few seconds — Chrome
+            unlocks the install option after a brief engagement check.
+          </p>
+        </Section>
+
+        <Section title="Samsung Internet">
+          <p>
+            Menu (☰) → <span className="font-medium text-slate-100">Add page to → Home screen</span>.
+          </p>
+        </Section>
+
+        <Section title="Firefox on Android">
+          <p>
+            Menu (⋮) → <span className="font-medium text-slate-100">Install</span>.
+          </p>
+        </Section>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="w-full mt-6 bg-sky-500 hover:bg-sky-400 text-white py-3 rounded-lg min-h-[44px] font-medium transition"
+        >
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <div className="mb-4">
+      <p className="text-xs uppercase tracking-wide text-sky-300 font-medium mb-1">{title}</p>
+      <div className="text-slate-200 text-sm space-y-1">{children}</div>
     </div>
   );
 }
