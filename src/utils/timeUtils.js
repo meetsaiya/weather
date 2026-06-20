@@ -45,17 +45,34 @@ export function getHoursInWindow(startTime, endTime, baseDate = new Date()) {
   return hours;
 }
 
-// Returns the single hour object with the heaviest precipitation. Ties broken
-// by higher precipitation_probability, then higher wind_speed_10m.
-export function getWorstHour(hoursData) {
+/**
+ * Returns the hour representing the "worst" conditions in the window for a
+ * cautious user. Ranks by *expected precipitation* (`precipitation × prob/100`)
+ * over hours that clear a probability floor — a 10 mm/hr forecast at 5%
+ * probability shouldn't outrank a 2 mm/hr forecast at 75% probability.
+ *
+ * Hours below the probability floor are excluded as candidates; if no hour
+ * clears the floor (dry window), we fall back to the full pool so we still
+ * return something — and tiebreak on wind so dry-but-windy windows still
+ * surface the gust hour for the cautious-user pipeline.
+ *
+ * Tiebreak (when expected-rain scores match — typically all zeros on a dry
+ * window) is by wind speed, preserving the wind-driven worst-hour signal.
+ */
+export function getWorstHour(hoursData, probFloorPct = 30) {
   if (!Array.isArray(hoursData) || hoursData.length === 0) return null;
 
-  return hoursData.reduce((worst, h) => {
+  const eligible = hoursData.filter(
+    (h) => (h.precipitation_probability ?? 0) >= probFloorPct
+  );
+  const pool = eligible.length > 0 ? eligible : hoursData;
+  const score = (h) =>
+    (h.precipitation ?? 0) * ((h.precipitation_probability ?? 0) / 100);
+
+  return pool.reduce((worst, h) => {
     if (!worst) return h;
-    const dP = (h.precipitation ?? 0) - (worst.precipitation ?? 0);
-    if (dP !== 0) return dP > 0 ? h : worst;
-    const dProb = (h.precipitation_probability ?? 0) - (worst.precipitation_probability ?? 0);
-    if (dProb !== 0) return dProb > 0 ? h : worst;
+    const dScore = score(h) - score(worst);
+    if (dScore !== 0) return dScore > 0 ? h : worst;
     const dWind = (h.wind_speed_10m ?? 0) - (worst.wind_speed_10m ?? 0);
     return dWind > 0 ? h : worst;
   }, null);

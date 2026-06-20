@@ -326,3 +326,120 @@ export function testBootThresholds() {
   }
   return result;
 }
+
+/**
+ * Verifies Fix 2: capped probability bar in a monsoon region.
+ *
+ * Scenario: Mumbai (lat 19, monsoon multiplier 0.7) in July, low risk
+ * tolerance (PROB_HIGH = 70). With the cap (PROB_BAR_MAX = 60), the
+ * effective bar is min(70, 60) = 60. The trigger condition is
+ * `rawProb × 0.7 > 60`, i.e. `rawProb > 85.7`.
+ *
+ * Expectations:
+ *   - rawProb = 85 → effectiveProb = 59.5, 59.5 > 60 = false → NOT triggered
+ *   - rawProb = 90 → effectiveProb = 63,   63   > 60 = true  → triggered
+ *
+ * Pre-fix behavior would have shown no triggers at any rawProb (since
+ * rawProb × 0.7 > 70 requires rawProb > 100, which is impossible).
+ */
+export function testMonsoonBar() {
+  const julyTuesday = new Date(2025, 6, 15); // month index 6 = July
+  const location = { latitude: 19.076, longitude: 72.877, label: 'Mumbai' };
+  const baseAggregated = {
+    precipitation: 1.5, // light-moderate rain
+    wind_speed_10m: 12,
+    uv_index: 1,
+    temperature_2m: 28,
+    apparent_temperature: 30,
+  };
+
+  const run = (rawProb) =>
+    generateRecommendations({
+      aggregated: { ...baseAggregated, precipitation_probability: rawProb },
+      riskTolerance: 'low',
+      location,
+      now: julyTuesday,
+    }).filter((r) => r.carry && r.item === 'umbrella').length > 0;
+
+  const cases = [60, 75, 85, 86, 90, 95];
+  console.group('[testMonsoonBar] Mumbai-July, low risk tolerance');
+  console.table(cases.map((p) => ({ rawProb: p, umbrella_triggered: run(p) })));
+  console.groupEnd();
+
+  const expect85 = run(85) === false;
+  const expect90 = run(90) === true;
+  if (expect85 && expect90) {
+    console.info('[testMonsoonBar] ✓ 85% does not trigger, 90% does — cap reachable');
+  } else {
+    console.warn(
+      '[testMonsoonBar] ✗ unexpected: rawProb=85 triggered?',
+      run(85),
+      '· rawProb=90 triggered?',
+      run(90)
+    );
+  }
+  return { passed: expect85 && expect90 };
+}
+
+/**
+ * Verifies Fix 3: getWorstHour ranks by expected precipitation, with a 30%
+ * probability floor for eligibility.
+ *
+ * Scenario: Hour A (8 mm/hr at 15% prob) vs Hour B (2 mm/hr at 75% prob).
+ *   - A's expected value: 8 × 0.15 = 1.2
+ *   - B's expected value: 2 × 0.75 = 1.5
+ *   - A's probability is below the 30% floor → A is ineligible
+ *   - Worst should be B
+ *
+ * Pre-fix behavior would have returned A (higher raw precipitation).
+ */
+export function testWorstHourRanking() {
+  const hourA = {
+    hour: '2026-06-16T08:00',
+    precipitation: 8,
+    precipitation_probability: 15,
+    wind_speed_10m: 10,
+  };
+  const hourB = {
+    hour: '2026-06-16T09:00',
+    precipitation: 2,
+    precipitation_probability: 75,
+    wind_speed_10m: 10,
+  };
+  const worst = getWorstHour([hourA, hourB]);
+  const passed = worst?.hour === hourB.hour;
+  console.group('[testWorstHourRanking] expected-value ranking');
+  console.table([
+    { hour: 'A', precip: 8, prob: 15, expected: 1.2, eligible: false },
+    { hour: 'B', precip: 2, prob: 75, expected: 1.5, eligible: true },
+  ]);
+  console.log('worst →', worst?.hour);
+  if (passed) {
+    console.info('[testWorstHourRanking] ✓ Hour B wins (1.5 > 1.2 expected, passes 30% floor)');
+  } else {
+    console.warn('[testWorstHourRanking] ✗ Expected Hour B, got', worst?.hour);
+  }
+  console.groupEnd();
+
+  // Edge case: dry-but-windy window should still tiebreak on wind.
+  const dryHourA = {
+    hour: '2026-06-16T08:00',
+    precipitation: 0,
+    precipitation_probability: 0,
+    wind_speed_10m: 12,
+  };
+  const dryHourB = {
+    hour: '2026-06-16T09:00',
+    precipitation: 0,
+    precipitation_probability: 0,
+    wind_speed_10m: 45,
+  };
+  const dryWorst = getWorstHour([dryHourA, dryHourB]);
+  const tiebreakOk = dryWorst?.hour === dryHourB.hour;
+  console.log(
+    '[testWorstHourRanking] dry-day wind tiebreak →',
+    dryWorst?.hour,
+    tiebreakOk ? '✓' : '✗'
+  );
+  return { passed: passed && tiebreakOk };
+}

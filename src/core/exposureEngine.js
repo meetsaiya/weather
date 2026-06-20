@@ -1,4 +1,5 @@
 import { sliceHoursByKeys } from './weatherEngine.js';
+import { WORST_HOUR_PROB_FLOOR } from './thresholds.js';
 import {
   getHoursInWindow,
   getWorstHour,
@@ -63,7 +64,7 @@ export function aggregateExposure({
   let aggregatedWeather;
   let strategy;
   if (riskTolerance === 'high') {
-    aggregatedWeather = getWorstHour(slice);
+    aggregatedWeather = getWorstHour(slice, WORST_HOUR_PROB_FLOOR);
     strategy = 'worst-hour';
   } else {
     const weights = tripOverlapWeights({

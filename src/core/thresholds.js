@@ -24,11 +24,23 @@ export const PROB_LOW = 20; // < 20
 export const PROB_MEDIUM = 50; // < 50
 export const PROB_HIGH = 70; // > 70
 
+// Hard ceiling on the effective probability bar after the monsoon multiplier
+// is applied. Without this, a low-risk-tolerance user (probBar=70) in a
+// monsoon region (multiplier=0.7) would need rawProb > 100%, which is
+// impossible — silently disabling all umbrella recommendations for the
+// season. See ALGORITHM_FLOW.md §2e.
+export const PROB_BAR_MAX = 60;
+
+// getWorstHour eligibility floor: an hour with very low rain probability
+// shouldn't outrank a moderate-probability hour just because its precipitation
+// number is bigger. Hours below this floor fall to the fallback pool.
+export const WORST_HOUR_PROB_FLOOR = 30;
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Seasonal climatology-derived thresholds
 //
-// RAIN_* and WIND_HIGH are computed from a ±15-day window around today's
-// calendar date, pulled across the last 10 years (so ~10 months of in-season
+// RAIN_* and WIND_HIGH are computed from a ±7-day window around today's
+// calendar date, pulled across the last 10 years (~3,700 hours of in-season
 // hourly data per location). This calibrates "high" against what's actually
 // normal *for this time of year* — Mumbai-June, not Mumbai-annual.
 //
@@ -75,7 +87,7 @@ const ARCHIVE_URL = 'https://archive-api.open-meteo.com/v1/archive';
 const CACHE_KEY_PREFIX = 'ww_climatology:';
 const CACHE_TTL_DAYS = 7;
 const SEASONAL_YEARS = 10;
-const SEASONAL_WINDOW_DAYS = 15; // ±15 days around today's calendar date
+const SEASONAL_WINDOW_DAYS = 7; // ±7 days around today's calendar date (was ±15)
 const WET_HOUR_MIN_MM = 0.1; // an hour with < 0.1mm is treated as dry
 
 /**

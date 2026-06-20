@@ -3,6 +3,7 @@ import {
   TEMP_VERY_COLD,
   UV_HIGH,
   RAIN_LIGHT,
+  RAIN_MODERATE,
 } from './thresholds.js';
 
 /**
@@ -16,9 +17,13 @@ import {
  * explain itself.
  *
  * Priority:
- *   1. rain + high wind → umbrella out, raincoat in (engine already triggered raincoat)
- *   2. cold + rain      → umbrella out, waterproof_layer in
- *   3. high UV + rain   → keep umbrella, annotate "doubles as sun cover"
+ *   1a. heavy rain (≥ RAIN_MODERATE) + high wind → umbrella out, raincoat in
+ *       (engine already triggered raincoat for this exact condition)
+ *   1b. light rain (< RAIN_MODERATE) + high wind → umbrella stays, mark
+ *       windyCaveat: true so plainEnglish renders the "hold on tight"
+ *       template. No raincoat (engine didn't trigger it for light rain).
+ *   2.  cold + rain      → umbrella out, waterproof_layer in
+ *   3.  high UV + rain   → keep umbrella, annotate "doubles as sun cover"
  */
 export function resolveConflicts(items = [], aggregated = {}) {
   const out = items.map((i) => ({ ...i }));
@@ -35,12 +40,20 @@ export function resolveConflicts(items = [], aggregated = {}) {
 
   const rainSignal = precip > RAIN_LIGHT;
 
-  // Rule 1 — rain + high wind: umbrella suppressed (raincoat already triggered).
-  if (carryingRain() && wind > WIND_HIGH) {
+  // Rule 1a — heavy rain + high wind: umbrella suppressed (raincoat already
+  // triggered by the engine for this exact condition).
+  if (carryingRain() && wind > WIND_HIGH && precip >= RAIN_MODERATE) {
     const u = byItem('umbrella');
     u.carry = false;
-    u.reason = `High winds (${Math.round(wind)} km/h) make an umbrella impractical — raincoat instead.`;
+    u.reason = `Heavy rain with high winds (${Math.round(wind)} km/h) make an umbrella impractical — raincoat instead.`;
     u.suppressedBy = 'wind';
+  }
+  // Rule 1b — light rain + high wind: umbrella stays, annotate as breezy.
+  // Raincoat wasn't triggered by the engine in this branch.
+  else if (carryingRain() && wind > WIND_HIGH) {
+    const u = byItem('umbrella');
+    u.windyCaveat = true;
+    u.windKmh = Math.round(wind);
   }
 
   // Rule 2 — cold + rain: umbrella suppressed (still, even if rule 1 already

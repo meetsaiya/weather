@@ -18,6 +18,14 @@ const TEMPLATES = {
     `Chance of rain during your ${label}. Worth bringing an umbrella.${note ? ' ' + note : ''}`,
   umbrella_unlikely: (label, note) =>
     `Slight chance of rain during your ${label} — probably fine without one.${note ? ' ' + note : ''}`,
+  // Windy-caveat variants: light rain + high wind. Raincoat isn't useful here;
+  // umbrella works but the wind makes it annoying.
+  umbrella_likely_windy: (label) =>
+    `Very likely to rain during your ${label}. Carry an umbrella, but it's breezy — hold on tight.`,
+  umbrella_possible_windy: (label) =>
+    `Chance of rain during your ${label}. Carry an umbrella, but it's breezy — hold on tight.`,
+  umbrella_unlikely_windy: (label) =>
+    `Slight chance of rain during your ${label} — probably fine, but it'll be breezy.`,
   windcheater: (label) =>
     `Strong winds during your ${label}. A windcheater would help.`,
   scarf: (label) => `It'll feel cold during your ${label}. A scarf and warm layers advised.`,
@@ -41,7 +49,12 @@ const PRIORITY = [
 
 function renderItem(rec, label) {
   if (rec.item === 'umbrella') {
-    const key = `umbrella_${rec.confidence ?? 'possible'}`;
+    const confidence = rec.confidence ?? 'possible';
+    if (rec.windyCaveat) {
+      const key = `umbrella_${confidence}_windy`;
+      return (TEMPLATES[key] ?? TEMPLATES.umbrella_possible_windy)(label);
+    }
+    const key = `umbrella_${confidence}`;
     return (TEMPLATES[key] ?? TEMPLATES.umbrella_possible)(label, rec.note);
   }
   const tpl = TEMPLATES[rec.item];

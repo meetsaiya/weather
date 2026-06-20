@@ -9,6 +9,7 @@ import {
   PROB_LOW,
   PROB_MEDIUM,
   PROB_HIGH,
+  PROB_BAR_MAX,
 } from './thresholds.js';
 import { resolveConflicts } from './conflictResolver.js';
 import { getClimateContext } from '../utils/climateContext.js';
@@ -83,6 +84,10 @@ export function generateRecommendations({
     : { sensitivityMultiplier: 1.0, label: 'unknown' };
 
   const rawProb = aggregated.precipitation_probability ?? 0;
+  // NOTE: sensitivityMultiplier dampens probability in monsoon regions.
+  // TODO: consider removing sensitivityMultiplier — it's potentially redundant
+  // with climatology calibration (seasonal RAIN_* percentiles already encode
+  // "what's a notable rain rate in this season"). See ALGORITHM_FLOW.md §2e.
   const effectiveProb = rawProb * climate.sensitivityMultiplier;
   const precip = aggregated.precipitation ?? 0;
   const wind = aggregated.wind_speed_10m ?? 0;
@@ -90,10 +95,18 @@ export function generateRecommendations({
   const temp = aggregated.temperature_2m ?? null;
   const appTemp = aggregated.apparent_temperature ?? temp;
 
-  const probBar = applyNudge(rainProbThresholdFor(riskTolerance), thresholdNudge);
+  // Cap the bar at PROB_BAR_MAX so the multiplier × low-tolerance combination
+  // can't make rain triggers mathematically unreachable. Side effect: this
+  // also lowers the relaxed (PROB_HIGH=70) bar to 60 in non-monsoon contexts
+  // — 70% rain is "very likely" anyway, so 60% with non-trivial precipitation
+  // is a defensible trigger.
+  const cappedBar = Math.min(rainProbThresholdFor(riskTolerance), PROB_BAR_MAX);
+  const probBar = applyNudge(cappedBar, thresholdNudge);
   const triggered = [];
 
-  // Rain → umbrella, with optional raincoat layered on for high winds.
+  // Rain → umbrella. Raincoat layered on for genuine heavy rain + high wind
+  // only — light rain + high wind keeps the umbrella with a "breezy" caveat
+  // (added by the conflict resolver).
   const rainTriggered = effectiveProb > probBar && precip > RAIN_LIGHT;
   if (rainTriggered) {
     triggered.push({
@@ -102,11 +115,11 @@ export function generateRecommendations({
       reason: `Rain expected (${Math.round(rawProb)}% chance, ~${precip.toFixed(1)} mm/hr).`,
       confidence: confidenceFor(rawProb, precip),
     });
-    if (wind > WIND_HIGH) {
+    if (wind > WIND_HIGH && precip >= RAIN_MODERATE) {
       triggered.push({
         item: 'raincoat',
         carry: true,
-        reason: `Rain with high winds (${Math.round(wind)} km/h).`,
+        reason: `Heavy rain with high winds (${Math.round(wind)} km/h).`,
         confidence: confidenceFor(rawProb, precip),
       });
     }

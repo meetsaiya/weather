@@ -11,6 +11,8 @@ import {
   testBootThresholds,
   testRecommendations,
   testRecommendationsLive,
+  testMonsoonBar,
+  testWorstHourRanking,
   CITY_PRESETS,
 } from './devTest.js';
 import { bootClimatology } from './core/thresholds.js';
@@ -46,6 +48,8 @@ if (import.meta.env.DEV) {
   window.testBootThresholds = testBootThresholds;
   window.testRecommendations = testRecommendations;
   window.testRecommendationsLive = testRecommendationsLive;
+  window.testMonsoonBar = testMonsoonBar;
+  window.testWorstHourRanking = testWorstHourRanking;
   window.CITY_PRESETS = CITY_PRESETS;
   window.devResetOnboarding = () => {
     localStorage.removeItem('ww_routine');
