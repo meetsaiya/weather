@@ -8,7 +8,14 @@ import { generateRecommendations } from '../../core/recommendEngine.js';
 import { generatePlainEnglish } from '../../core/plainEnglish.js';
 import { applyDeviations } from '../../utils/deviations.js';
 import { buildDailyBrief } from '../../utils/dailyBrief.js';
+import {
+  todayISO,
+  tomorrowISO,
+  parseISOAsLocalDate,
+  formatLongDate,
+} from '../../utils/dateHelpers.js';
 import DaySummary from './DaySummary.jsx';
+import DateToggle from './DateToggle.jsx';
 import WindowCard, { windowStatus } from './WindowCard.jsx';
 import Skeleton from './Skeleton.jsx';
 import BriefBanner from './BriefBanner.jsx';
@@ -29,10 +36,6 @@ function relativeTime(ms) {
   return `${Math.floor(hr / 24)} day ago`;
 }
 
-function todayLabel(d = new Date()) {
-  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-}
-
 export default function Dashboard() {
   const { routine } = useRoutine();
   const { weatherData, isStale, isOffline, lastFetched, isLoading, error, refresh } = useWeather(
@@ -43,13 +46,27 @@ export default function Dashboard() {
   const [locationOpen, setLocationOpen] = useState(false);
   const [routineOpen, setRoutineOpen] = useState(false);
   const [, setDeviationsTick] = useState(0); // bump to re-merge when modal closes
+  const [view, setView] = useState('today'); // 'today' | 'tomorrow'
+
   const closeDeviation = () => {
     setDeviationOpen(false);
     setDeviationsTick((n) => n + 1);
   };
 
-  // Morning briefing: setTimeout-based notification while the tab is open,
-  // plus an in-app banner if today's notification time has already passed.
+  const targetDateISO = view === 'tomorrow' ? tomorrowISO() : todayISO();
+  const targetDate = parseISOAsLocalDate(targetDateISO);
+  const isTomorrow = view === 'tomorrow';
+
+  // Whether the loaded weather actually contains hours for the target date.
+  // Open-Meteo's response covers today + tomorrow in one fetch, so this is
+  // true once the initial fetch completes. Used to gate the skeleton on the
+  // Tomorrow tab when the cache is missing or pre-first-fetch.
+  const haveTargetDateData =
+    Array.isArray(weatherData) &&
+    weatherData.some((h) => typeof h.hour === 'string' && h.hour.startsWith(targetDateISO));
+
+  // Morning briefing: always uses today's data — tomorrow's view is a
+  // dashboard-only planning aid and never feeds the notification.
   const computeBrief = useCallback(
     () => buildDailyBrief({ routine, weatherData, thresholdNudge }),
     [routine, weatherData, thresholdNudge]
@@ -61,14 +78,16 @@ export default function Dashboard() {
     computeBrief,
   });
 
-  // Merge today's deviations and run the pipeline per window.
+  // Run the per-window pipeline for the selected day. Deviations apply to
+  // today only — on Tomorrow we always use the base routine.
   const cards = useMemo(() => {
     if (!weatherData) return [];
-    const windows = applyDeviations(routine.windows);
+    const windows = isTomorrow ? routine.windows : applyDeviations(routine.windows);
     return windows.map((win) => {
       const exposure = aggregateExposure({
         userWindow: win,
         hourlyWeatherArray: weatherData,
+        baseDate: targetDate,
       });
       const recs = generateRecommendations({
         aggregated: exposure.aggregatedWeather,
@@ -76,24 +95,37 @@ export default function Dashboard() {
         tripDurationMins: win.tripDurationMins,
         location: routine.location,
         thresholdNudge,
+        now: targetDate,
       });
       const english = generatePlainEnglish(recs, win.label, exposure.aggregatedWeather);
       return {
         window: win,
         recs,
         english,
-        status: windowStatus(win),
+        // Tomorrow's windows are always "upcoming" — no past/active states.
+        status: isTomorrow ? 'upcoming' : windowStatus(win),
         aggregated: exposure.aggregatedWeather,
       };
     });
     // setDeviationsTick is referenced to register the dep; re-merge on modal close.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [weatherData, routine.windows, routine.location, thresholdNudge, setDeviationsTick]);
+  }, [
+    weatherData,
+    routine.windows,
+    routine.location,
+    thresholdNudge,
+    isTomorrow,
+    targetDateISO,
+    setDeviationsTick,
+  ]);
+
+  const headerDateLabel = formatLongDate(targetDate);
+  const showSkeleton = !haveTargetDateData && (isLoading || !error);
 
   return (
     <div className="min-h-screen p-6 max-w-md mx-auto pb-24">
       <header className="mb-4">
-        <p className="text-xs uppercase tracking-wide text-slate-500">{todayLabel()}</p>
+        <p className="text-xs uppercase tracking-wide text-slate-500">{headerDateLabel}</p>
         <button
           type="button"
           onClick={() => setLocationOpen(true)}
@@ -123,6 +155,10 @@ export default function Dashboard() {
         </div>
       </header>
 
+      <div className="mb-4">
+        <DateToggle value={view} onChange={setView} />
+      </div>
+
       <BriefBanner brief={inAppBrief} onDismiss={dismissBanner} />
       <InstallPrompt />
 
@@ -136,7 +172,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {error && !weatherData && (
+      {error && !haveTargetDateData && (
         <div
           className="mb-4 bg-rose-500/10 border border-rose-500/30 text-rose-200 text-sm rounded-lg p-3"
           role="alert"
@@ -154,12 +190,12 @@ export default function Dashboard() {
         </div>
       )}
 
-      {weatherData && (
+      {haveTargetDateData && (
         <>
-          <DaySummary weatherData={weatherData} />
+          <DaySummary weatherData={weatherData} targetDate={targetDateISO} />
 
           <section className="mt-4 space-y-3">
-            {cards.length === 0 && routine.windows.length > 0 && (
+            {cards.length === 0 && routine.windows.length > 0 && !isTomorrow && (
               <div className="bg-slate-800 rounded-xl p-4 text-slate-400 text-sm">
                 All windows skipped today. Tap the button below to undo.
               </div>
@@ -172,6 +208,7 @@ export default function Dashboard() {
                 english={c.english}
                 status={c.status}
                 aggregated={c.aggregated}
+                targetDate={targetDateISO}
               />
             ))}
             {routine.windows.length === 0 && (
@@ -199,19 +236,30 @@ export default function Dashboard() {
             )}
           </section>
 
-          <AccuracySummary />
+          {!isTomorrow && <AccuracySummary />}
         </>
       )}
 
-      {!weatherData && isLoading && <Skeleton />}
+      {showSkeleton && <Skeleton />}
 
-      <button
-        type="button"
-        onClick={() => setDeviationOpen(true)}
-        className="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-sky-500 hover:bg-sky-400 text-white font-medium py-3 rounded-full shadow-lg min-h-[44px] transition"
-      >
-        Today I'm doing something different
-      </button>
+      {/* Deviation button is today-only. On Tomorrow we hide it entirely
+          and surface an explanatory tag in the bottom strip instead. */}
+      {!isTomorrow ? (
+        <button
+          type="button"
+          onClick={() => setDeviationOpen(true)}
+          className="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-sky-500 hover:bg-sky-400 text-white font-medium py-3 rounded-full shadow-lg min-h-[44px] transition"
+        >
+          Today I'm doing something different
+        </button>
+      ) : (
+        <div
+          className="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-slate-800 text-slate-400 text-xs text-center py-3 rounded-full shadow-lg ring-1 ring-slate-700"
+          role="note"
+        >
+          Deviations apply to today only.
+        </div>
+      )}
 
       <DeviationModal open={deviationOpen} onClose={closeDeviation} />
       <LocationPicker open={locationOpen} onClose={() => setLocationOpen(false)} />

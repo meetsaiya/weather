@@ -70,21 +70,29 @@ function pickPrimaryItem(recs) {
   )[0].item;
 }
 
-export default function WindowCard({ window: win, recs, english, status, aggregated }) {
+export default function WindowCard({
+  window: win,
+  recs,
+  english,
+  status,
+  aggregated,
+  targetDate,
+}) {
   const actualStatus = status ?? windowStatus(win);
   const active = recs.filter((r) => r.carry);
-  const date = todayISO();
+  const today = todayISO();
+  const date = targetDate ?? today;
+  const isToday = date === today;
 
   const { routine } = useRoutine();
   const { upsert, find } = useOutcomes();
   const { hasAnswered } = useFeedback();
 
-  // Once the window has passed, record an outcome (idempotent). Captures the
-  // forecast prob/precip at recommendation time and kicks off a background
-  // fetch of observed weather. The outcome powers both FeedbackPrompt and the
-  // outcome strip below.
+  // Outcome recording + feedback flow are only meaningful for past windows
+  // on today's calendar. Tomorrow's windows haven't happened yet; previous
+  // days are out of view for the dashboard.
   useEffect(() => {
-    if (actualStatus !== 'past' || !aggregated) return;
+    if (!isToday || actualStatus !== 'past' || !aggregated) return;
     ensureOutcome({
       window: win,
       date,
@@ -105,11 +113,12 @@ export default function WindowCard({ window: win, recs, english, status, aggrega
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [actualStatus, win.id, date, aggregated?.precipitation_probability]);
 
-  const outcome = find(win.id, date);
-  const answered = hasAnswered(win.id, date);
+  const outcome = isToday ? find(win.id, date) : null;
+  const answered = isToday ? hasAnswered(win.id, date) : false;
   const feedbackExpired =
-    actualStatus === 'past' && isExpiredAt(win, date) && !answered;
-  const showStrip = actualStatus === 'past' && (answered || feedbackExpired);
+    isToday && actualStatus === 'past' && isExpiredAt(win, date) && !answered;
+  const showStrip = isToday && actualStatus === 'past' && (answered || feedbackExpired);
+  const showFeedback = isToday && actualStatus === 'past' && !showStrip;
 
   return (
     <article className={`bg-slate-800 rounded-xl p-4 ${actualStatus === 'past' ? 'opacity-70' : ''}`}>
@@ -158,7 +167,7 @@ export default function WindowCard({ window: win, recs, english, status, aggrega
 
       {showStrip && <OutcomeStrip outcome={outcome} primaryItem={pickPrimaryItem(recs)} />}
 
-      {actualStatus === 'past' && !showStrip && <FeedbackPrompt window={win} date={date} />}
+      {showFeedback && <FeedbackPrompt window={win} date={date} />}
     </article>
   );
 }

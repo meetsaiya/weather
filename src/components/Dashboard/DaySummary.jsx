@@ -1,10 +1,12 @@
 import { describeWeather, dominantWeatherCode, uvBand } from '../../utils/weatherCondition.js';
 
-function todayHours(weatherData) {
+function todayISO(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function hoursForDate(weatherData, dateISO) {
   if (!Array.isArray(weatherData)) return [];
-  const d = new Date();
-  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  return weatherData.filter((h) => typeof h.hour === 'string' && h.hour.startsWith(today));
+  return weatherData.filter((h) => typeof h.hour === 'string' && h.hour.startsWith(dateISO));
 }
 
 const TONE_CLASS = {
@@ -15,8 +17,9 @@ const TONE_CLASS = {
   slate: 'text-slate-400',
 };
 
-export default function DaySummary({ weatherData }) {
-  const hours = todayHours(weatherData);
+export default function DaySummary({ weatherData, targetDate }) {
+  const dateISO = targetDate ?? todayISO();
+  const hours = hoursForDate(weatherData, dateISO);
   if (hours.length === 0) {
     return (
       <div className="bg-slate-800 rounded-xl p-4 text-slate-400 text-sm">
@@ -42,7 +45,9 @@ export default function DaySummary({ weatherData }) {
           {condition.icon}
         </span>
         <div>
-          <p className="text-xs text-slate-500 uppercase tracking-wide">Today</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wide">
+            {dateISO === todayISO() ? 'Today' : 'Tomorrow'}
+          </p>
           <p className="text-slate-100 font-medium">{condition.label}</p>
         </div>
       </div>
