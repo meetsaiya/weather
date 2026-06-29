@@ -17,16 +17,16 @@ import { getClimateContext } from '../utils/climateContext.js';
 const SUNSCREEN_MIN_MINUTES = 20;
 
 /**
- * Map the user's risk tolerance to the probability bar at which rain
- * recommendations fire.
+ * Map the user's consequence level (how much getting wet matters) to the
+ * probability bar at which rain recommendations fire.
  *
- *   high   (cautious) → PROB_LOW    (20%)  trigger early
- *   medium            → PROB_MEDIUM (50%)
- *   low    (relaxed)  → PROB_HIGH   (70%)  trigger only when very likely
+ *   high   (staying dry matters) → PROB_LOW    (20%)  trigger early
+ *   medium (prefers to stay dry) → PROB_MEDIUM (50%)
+ *   low    (rain is fine)        → PROB_HIGH   (70%)  trigger only when very likely
  */
-function rainProbThresholdFor(riskTolerance) {
-  if (riskTolerance === 'high') return PROB_LOW;
-  if (riskTolerance === 'low') return PROB_HIGH;
+function rainProbThresholdFor(consequenceLevel) {
+  if (consequenceLevel === 'high') return PROB_LOW;
+  if (consequenceLevel === 'low') return PROB_HIGH;
   return PROB_MEDIUM;
 }
 
@@ -59,7 +59,7 @@ function confidenceFor(prob, precip) {
  *
  * @param {object} params
  * @param {object} params.aggregated         output of exposureEngine.aggregateExposure
- * @param {string} [params.riskTolerance]    'low'|'medium'|'high'
+ * @param {string} [params.consequenceLevel]    'low'|'medium'|'high'
  * @param {number} [params.tripDurationMins]
  * @param {{ latitude:number, longitude:number }} [params.location]
  * @param {Date}   [params.now]              for testability
@@ -67,7 +67,7 @@ function confidenceFor(prob, precip) {
  */
 export function generateRecommendations({
   aggregated,
-  riskTolerance = 'medium',
+  consequenceLevel = 'medium',
   tripDurationMins = 0,
   location,
   thresholdNudge = 0,
@@ -100,7 +100,7 @@ export function generateRecommendations({
   // also lowers the relaxed (PROB_HIGH=70) bar to 60 in non-monsoon contexts
   // — 70% rain is "very likely" anyway, so 60% with non-trivial precipitation
   // is a defensible trigger.
-  const cappedBar = Math.min(rainProbThresholdFor(riskTolerance), PROB_BAR_MAX);
+  const cappedBar = Math.min(rainProbThresholdFor(consequenceLevel), PROB_BAR_MAX);
   const probBar = applyNudge(cappedBar, thresholdNudge);
   const triggered = [];
 

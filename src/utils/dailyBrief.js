@@ -48,7 +48,7 @@ export function buildDailyBrief({
     const exposure = aggregateExposure({ userWindow: win, hourlyWeatherArray: weatherData });
     const recs = generateRecommendations({
       aggregated: exposure.aggregatedWeather,
-      riskTolerance: win.riskTolerance,
+      consequenceLevel: win.consequenceLevel,
       tripDurationMins: win.tripDurationMins,
       location: routine.location,
       thresholdNudge,

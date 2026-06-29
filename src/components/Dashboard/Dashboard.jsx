@@ -71,7 +71,7 @@ export default function Dashboard() {
       });
       const recs = generateRecommendations({
         aggregated: exposure.aggregatedWeather,
-        riskTolerance: win.riskTolerance,
+        consequenceLevel: win.consequenceLevel,
         tripDurationMins: win.tripDurationMins,
         location: routine.location,
         thresholdNudge,

@@ -1,5 +1,5 @@
 import FeedbackPrompt from '../Feedback/FeedbackPrompt.jsx';
-import { TOLERANCE_LABELS } from '../Onboarding/WindowEditor.jsx';
+import { CONSEQUENCE_OPTIONS } from '../../utils/consequence.js';
 
 const ITEM_ICONS = {
   umbrella: '☂️',
@@ -55,7 +55,10 @@ export default function WindowCard({ window: win, recs, english, status }) {
         </span>
       </header>
       <p className="text-xs text-slate-500 mt-0.5">
-        {win.tripDurationMins} min outside · {TOLERANCE_LABELS[win.riskTolerance] ?? win.riskTolerance}
+        {win.tripDurationMins} min outside ·{' '}
+        <span className="text-slate-400">
+          {CONSEQUENCE_OPTIONS[win.consequenceLevel]?.tag ?? win.consequenceLevel}
+        </span>
         {actualStatus === 'past' && ' · already happened'}
         {actualStatus === 'active' && ' · happening now'}
       </p>

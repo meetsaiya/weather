@@ -84,7 +84,7 @@ export async function testThresholds() {
  * Dev-only smoke test for the recommendation pipeline. Uses the canonical
  * scenario from Session 2:
  *
- *   - Window 17:00–19:00, 20-minute trip, riskTolerance: 'high'
+ *   - Window 17:00–19:00, 20-minute trip, consequenceLevel: 'high'
  *   - Mock weather: 65% rain prob, 3 mm/hr, 45 km/h wind
  *
  * Expected: raincoat carried, umbrella suppressed by the wind conflict.
@@ -104,7 +104,7 @@ export function testRecommendations() {
 
   const recs = generateRecommendations({
     aggregated: mockAggregated,
-    riskTolerance: 'high',
+    consequenceLevel: 'high',
     tripDurationMins: 20,
   });
 
@@ -175,12 +175,12 @@ export async function testRecommendationsLive(arg, lon, label) {
     startTime: '17:00',
     endTime: '19:00',
     tripDurationMins: 20,
-    riskTolerance: 'medium',
+    consequenceLevel: 'medium',
   };
   const exposure = aggregateExposure({ userWindow, hourlyWeatherArray: hourly });
   const recs = generateRecommendations({
     aggregated: exposure.aggregatedWeather,
-    riskTolerance: exposure.riskTolerance,
+    consequenceLevel: exposure.consequenceLevel,
     tripDurationMins: userWindow.tripDurationMins,
     location: { latitude: loc.latitude, longitude: loc.longitude },
   });
@@ -356,7 +356,7 @@ export function testMonsoonBar() {
   const run = (rawProb) =>
     generateRecommendations({
       aggregated: { ...baseAggregated, precipitation_probability: rawProb },
-      riskTolerance: 'low',
+      consequenceLevel: 'low',
       location,
       now: julyTuesday,
     }).filter((r) => r.carry && r.item === 'umbrella').length > 0;

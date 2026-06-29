@@ -7,7 +7,7 @@ const DEFAULT_WINDOW = {
   endTime: '09:00',
   tripDurationMins: 20,
   transportMode: 'walking',
-  riskTolerance: 'medium',
+  consequenceLevel: 'medium',
 };
 
 function toMinutes(hhmm) {

@@ -1,8 +1,4 @@
-const TOLERANCE_LABELS = {
-  high: 'I need to stay dry',
-  medium: 'Prefer to stay dry',
-  low: 'Light rain is fine',
-};
+import { CONSEQUENCE_OPTIONS, CONSEQUENCE_LEVELS } from '../../utils/consequence.js';
 
 const MODES = [
   { value: 'walking', label: 'Walking' },
@@ -98,31 +94,37 @@ export default function WindowEditor({ window: win, onChange, onDelete }) {
       </label>
 
       <fieldset>
-        <legend className="text-xs text-slate-400 mb-2">How sensitive are you to rain?</legend>
-        <div className="space-y-2">
-          {Object.entries(TOLERANCE_LABELS).map(([value, label]) => (
-            <label
-              key={value}
-              className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer min-h-[44px] transition ${
-                win.riskTolerance === value
-                  ? 'bg-sky-500/20 ring-1 ring-sky-400'
-                  : 'bg-slate-900 hover:bg-slate-700'
-              }`}
-            >
-              <input
-                type="radio"
-                name={`tolerance-${win.id}`}
-                checked={win.riskTolerance === value}
-                onChange={() => set('riskTolerance', value)}
-                className="accent-sky-400 h-5 w-5"
-              />
-              <span className="text-slate-100 text-sm">{label}</span>
-            </label>
-          ))}
+        <legend className="text-xs text-slate-400 mb-2">If you get caught in rain…</legend>
+        <div
+          className="space-y-2"
+          role="radiogroup"
+          aria-label="Consequence of getting wet"
+        >
+          {CONSEQUENCE_LEVELS.map((level) => {
+            const opt = CONSEQUENCE_OPTIONS[level];
+            const selected = win.consequenceLevel === level;
+            return (
+              <button
+                key={level}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => set('consequenceLevel', level)}
+                className={`block w-full text-left p-3 rounded-lg cursor-pointer min-h-[44px] transition ${
+                  selected
+                    ? 'bg-sky-500/15 ring-2 ring-sky-400'
+                    : 'bg-slate-900 hover:bg-slate-700 ring-1 ring-transparent'
+                }`}
+              >
+                <p className="text-slate-100 text-sm font-medium">{opt.title}</p>
+                <p className="text-slate-300 text-xs mt-1 leading-snug">{opt.description}</p>
+                <p className="text-slate-500 text-[11px] mt-2 leading-snug italic">{opt.note}</p>
+              </button>
+            );
+          })}
         </div>
       </fieldset>
     </div>
   );
 }
 
-export { TOLERANCE_LABELS };

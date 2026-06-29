@@ -25,12 +25,12 @@ import {
  * we fall back to equal weights.
  *
  * @param {object} params
- * @param {object} params.userWindow      { startTime, endTime, tripDurationMins, riskTolerance }
+ * @param {object} params.userWindow      { startTime, endTime, tripDurationMins, consequenceLevel }
  * @param {Array}  params.hourlyWeatherArray   parsed Open-Meteo hourly rows
  * @param {Date}   [params.baseDate=new Date()] used to anchor "HH:MM" inputs
  * @returns {{
  *   aggregatedWeather: object|null,
- *   riskTolerance: 'low'|'medium'|'high',
+ *   consequenceLevel: 'low'|'medium'|'high',
  *   hourKeys: string[],
  *   slice: Array,
  *   strategy: 'worst-hour'|'weighted-average'
@@ -45,16 +45,16 @@ export function aggregateExposure({
     startTime,
     endTime,
     tripDurationMins,
-    riskTolerance = 'medium',
+    consequenceLevel = 'medium',
   } = userWindow ?? {};
 
   if (!startTime || !endTime || !Array.isArray(hourlyWeatherArray)) {
     return {
       aggregatedWeather: null,
-      riskTolerance,
+      consequenceLevel,
       hourKeys: [],
       slice: [],
-      strategy: riskTolerance === 'high' ? 'worst-hour' : 'weighted-average',
+      strategy: consequenceLevel === 'high' ? 'worst-hour' : 'weighted-average',
     };
   }
 
@@ -63,7 +63,7 @@ export function aggregateExposure({
 
   let aggregatedWeather;
   let strategy;
-  if (riskTolerance === 'high') {
+  if (consequenceLevel === 'high') {
     aggregatedWeather = getWorstHour(slice, WORST_HOUR_PROB_FLOOR);
     strategy = 'worst-hour';
   } else {
@@ -78,7 +78,7 @@ export function aggregateExposure({
     strategy = 'weighted-average';
   }
 
-  return { aggregatedWeather, riskTolerance, hourKeys, slice, strategy };
+  return { aggregatedWeather, consequenceLevel, hourKeys, slice, strategy };
 }
 
 /**

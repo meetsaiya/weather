@@ -7,11 +7,34 @@ const MAX_WINDOWS = 5;
 export const DEFAULT_ROUTINE = {
   schemaVersion: SCHEMA_VERSION,
   location: null, // { latitude, longitude, label } | null
-  windows: [], // [{ id, label, startTime, endTime, tripDurationMins, transportMode, riskTolerance }]
+  windows: [], // [{ id, label, startTime, endTime, tripDurationMins, transportMode, consequenceLevel }]
   notificationTime: '07:00',
   notificationsEnabled: false,
   onboardingComplete: false,
 };
+
+/**
+ * In-place silent migration: `window.riskTolerance` → `window.consequenceLevel`.
+ *
+ * The old field name was retired in favor of consequence-framing UI, but the
+ * internal values ('high' | 'medium' | 'low') and downstream behavior are
+ * unchanged. Old routines stored before the rename are migrated on first
+ * read; the result is persisted back so the migration runs at most once.
+ */
+function migrateWindowsInPlace(parsed) {
+  if (!parsed || !Array.isArray(parsed.windows)) return false;
+  let changed = false;
+  parsed.windows = parsed.windows.map((w) => {
+    if (!w || typeof w !== 'object') return w;
+    if ('riskTolerance' in w && !('consequenceLevel' in w)) {
+      changed = true;
+      const { riskTolerance, ...rest } = w;
+      return { ...rest, consequenceLevel: riskTolerance };
+    }
+    return w;
+  });
+  return changed;
+}
 
 function readRoutine() {
   try {
@@ -21,6 +44,8 @@ function readRoutine() {
     // Schema mismatch: discard rather than guess. MVP — we'll write migrations
     // when there's an actual past version worth preserving.
     if (parsed?.schemaVersion !== SCHEMA_VERSION) return { ...DEFAULT_ROUTINE };
+    const migrated = migrateWindowsInPlace(parsed);
+    if (migrated) writeRoutine(parsed); // persist so next reader sees the new shape
     return { ...DEFAULT_ROUTINE, ...parsed };
   } catch {
     return { ...DEFAULT_ROUTINE };

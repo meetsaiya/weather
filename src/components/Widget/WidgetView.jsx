@@ -56,7 +56,7 @@ export default function WidgetView() {
     });
     const recs = generateRecommendations({
       aggregated: exposure.aggregatedWeather,
-      riskTolerance: next.riskTolerance,
+      consequenceLevel: next.consequenceLevel,
       tripDurationMins: next.tripDurationMins,
       location: routine.location,
       thresholdNudge,
