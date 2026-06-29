@@ -20,6 +20,7 @@ import WindowCard, { windowStatus } from './WindowCard.jsx';
 import Skeleton from './Skeleton.jsx';
 import BriefBanner from './BriefBanner.jsx';
 import AccuracySummary from './AccuracySummary.jsx';
+import Footer from './Footer.jsx';
 import DeviationModal from '../Deviation/DeviationModal.jsx';
 import LocationPicker from '../Location/LocationPicker.jsx';
 import RoutineEditor from '../Routine/RoutineEditor.jsx';
@@ -237,6 +238,7 @@ export default function Dashboard() {
           </section>
 
           {!isTomorrow && <AccuracySummary />}
+          <Footer />
         </>
       )}
 
