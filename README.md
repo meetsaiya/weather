@@ -12,45 +12,9 @@ A personal weather PWA that turns hourly forecasts into plain-English recommenda
 
 Everything runs client-side. No backend, no accounts, no paid APIs.
 
-## Setup
-
-```bash
-git clone https://github.com/<you>/weather.git
-cd weather
-npm install
-npm run dev
-```
-
-Opens at `http://localhost:5173`. First-run onboarding asks for location → routine → notifications.
-
-## Deploy
-
-### Vercel (recommended)
-
-Push to a GitHub repo, then:
-```bash
-npm i -g vercel
-vercel       # link the project
-vercel --prod
-```
-Vercel auto-detects Vite. `vercel.json` ships with cache headers that keep `sw.js` and `manifest.webmanifest` from getting cached too aggressively.
-
-### GitHub Pages
-
-```bash
-npm run build
-# Configure your repo's Pages settings to serve dist/ from a branch (e.g. gh-pages),
-# or use an action like peaceiris/actions-gh-pages.
-```
-Set `base` in `vite.config.js` if you're publishing to a subpath like `https://you.github.io/weather/` (e.g., `base: '/weather/'`).
-
-### Other static hosts
-
-Any static host works — there's no server-side component. Drop `dist/` on Netlify, Cloudflare Pages, S3, etc.
-
 ## Install as a PWA
 
-Once deployed (or running on `localhost`), Chrome and Safari surface an "Add to Home Screen" prompt. The manifest declares a `?view=widget` shortcut that renders a compressed 3-line view (most-critical recommendation for the next window) — visible from the home-screen icon's long-press menu on Android.
+Chrome and Safari surface an "Add to Home Screen" prompt. The manifest declares a `?view=widget` shortcut that renders a compressed 3-line view (most-critical recommendation for the next window) — visible from the home-screen icon's long-press menu on Android.
 
 ## How recommendations work
 
