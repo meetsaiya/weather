@@ -24,6 +24,9 @@ import {
  *       template. No raincoat (engine didn't trigger it for light rain).
  *   2.  cold + rain      → umbrella out, waterproof_layer in
  *   3.  high UV + rain   → keep umbrella, annotate "doubles as sun cover"
+ *   4.  action item present → drop redundant informational triggers
+ *       (light_clothing, UV-only hat) so the card stays focused on the
+ *       thing the user actually carries.
  */
 export function resolveConflicts(items = [], aggregated = {}) {
   const out = items.map((i) => ({ ...i }));
@@ -80,6 +83,28 @@ export function resolveConflicts(items = [], aggregated = {}) {
     const u = byItem('umbrella');
     if (u && u.carry) {
       u.note = 'Doubles as sun cover.';
+    }
+  }
+
+  // Rule 4 — informational items get suppressed when an action item already
+  // covers the user. Keeps the card focused on the thing they actually carry.
+  const ACTION_ITEMS = ['umbrella', 'raincoat', 'waterproof_layer', 'scarf', 'windcheater'];
+  const hasActionItem = ACTION_ITEMS.some((name) => byItem(name)?.carry);
+  if (hasActionItem) {
+    const lc = byItem('light_clothing');
+    if (lc?.carry) {
+      lc.carry = false;
+      lc.reason =
+        'Suppressed: a carry item already covers the weather for this window.';
+      lc.suppressedBy = 'action-item-priority';
+    }
+    const hat = byItem('hat');
+    // Cold-driven hat is itself an action item (a beanie), so keep it.
+    // UV-driven hat is redundant when umbrella/raincoat is already in hand.
+    if (hat?.carry && hat.hatReason === 'uv') {
+      hat.carry = false;
+      hat.reason = 'Suppressed: umbrella also blocks sun, no separate hat needed.';
+      hat.suppressedBy = 'action-item-priority';
     }
   }
 

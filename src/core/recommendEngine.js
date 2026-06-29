@@ -6,6 +6,7 @@ import {
   UV_HIGH,
   TEMP_VERY_COLD,
   TEMP_HOT,
+  TEMP_VERY_HOT,
   PROB_LOW,
   PROB_MEDIUM,
   PROB_HIGH,
@@ -135,16 +136,21 @@ export function generateRecommendations({
     });
   }
 
-  // UV high or cold → hat / cap (the same item, separate reasons per ALGORITHM.md).
-  if (uv > UV_MODERATE || (temp != null && temp < TEMP_VERY_COLD)) {
+  // UV high or cold → hat / cap (the same item, separate reasons).
+  // hatReason is recorded so the conflict resolver can suppress the UV-driven
+  // hat when an action item already covers the user (e.g. umbrella doubles as
+  // sun cover) while keeping the cold-driven hat as a genuine carry item.
+  const hatForCold = temp != null && temp < TEMP_VERY_COLD;
+  const hatForUV = uv > UV_MODERATE;
+  if (hatForCold || hatForUV) {
     triggered.push({
       item: 'hat',
       carry: true,
-      reason:
-        uv > UV_MODERATE
-          ? `High UV (${uv.toFixed(1)}).`
-          : `Cold (${Math.round(temp)}°C).`,
+      reason: hatForCold
+        ? `Cold (${Math.round(temp)}°C).`
+        : `High UV (${uv.toFixed(1)}).`,
       confidence: 'likely',
+      hatReason: hatForCold ? 'cold' : 'uv',
     });
   }
 
@@ -168,12 +174,15 @@ export function generateRecommendations({
     });
   }
 
-  // Apparent temp hot → light clothing note.
-  if (appTemp != null && appTemp > TEMP_HOT) {
+  // Apparent temp *very* hot → light clothing note. Bar raised from TEMP_HOT
+  // (30°C, just "warm" in tropical climates) to TEMP_VERY_HOT (37°C) so the
+  // suggestion only fires when it's genuinely uncomfortable, not as a default
+  // for every summer afternoon in a hot region.
+  if (appTemp != null && appTemp > TEMP_VERY_HOT) {
     triggered.push({
       item: 'light_clothing',
       carry: true,
-      reason: `Hot (feels like ${Math.round(appTemp)}°C). Dress light.`,
+      reason: `Very hot (feels like ${Math.round(appTemp)}°C). Dress light, drink water.`,
       confidence: 'likely',
     });
   }
