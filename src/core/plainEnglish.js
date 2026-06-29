@@ -1,39 +1,73 @@
 /**
  * Render recommendations as 1–3 plain-English sentences for a single window.
  *
- * Honest uncertainty language only: "very likely", "chance of", "looking
- * clear" — never false certainty. Items are emitted in priority order
- * (safety → comfort → convenience) and capped at three to keep the widget
- * view honest.
+ * Probability figures are embedded inline ("(65% chance)") so the number
+ * becomes ambient over time — users absorb that recommendations are anchored
+ * to probabilities without us ever lecturing them about uncertainty.
+ *
+ * Templates are pure functions over a context bag:
+ *   { label, prob (raw probability %), note }
+ * so callers don't need to know which template signature applies.
  */
 
 const TEMPLATES = {
-  raincoat: (label) =>
-    `Rain with high winds during your ${label} — an umbrella won't help. Take a raincoat.`,
-  waterproof_layer: (label) =>
+  raincoat: ({ label, prob }) =>
+    `Heavy rain with high winds during your ${label}${probSuffix(prob)} — an umbrella won't help. Take a raincoat.`,
+  waterproof_layer: ({ label }) =>
     `Cold and wet during your ${label}. A waterproof layer is more useful than an umbrella.`,
-  umbrella_likely: (label, note) =>
-    `Very likely to rain during your ${label}. Carry an umbrella.${note ? ' ' + note : ''}`,
-  umbrella_possible: (label, note) =>
-    `Chance of rain during your ${label}. Worth bringing an umbrella.${note ? ' ' + note : ''}`,
-  umbrella_unlikely: (label, note) =>
-    `Slight chance of rain during your ${label} — probably fine without one.${note ? ' ' + note : ''}`,
+
+  umbrella_likely: ({ label, prob, note }) =>
+    `Rain is likely during your ${label} (${pct(prob, 'a high chance')}). Carry an umbrella.${appendNote(note)}`,
+  umbrella_possible: ({ label, prob, note }) =>
+    `There's a ${pct(prob, 'real chance')} of rain on your ${label}. Worth bringing an umbrella.${appendNote(note)}`,
+  umbrella_unlikely: ({ label, prob, note }) =>
+    `Low chance of rain${probParen(prob)}. Probably fine without one.${appendNote(note)}`,
+
   // Windy-caveat variants: light rain + high wind. Raincoat isn't useful here;
   // umbrella works but the wind makes it annoying.
-  umbrella_likely_windy: (label) =>
-    `Very likely to rain during your ${label}. Carry an umbrella, but it's breezy — hold on tight.`,
-  umbrella_possible_windy: (label) =>
-    `Chance of rain during your ${label}. Carry an umbrella, but it's breezy — hold on tight.`,
-  umbrella_unlikely_windy: (label) =>
-    `Slight chance of rain during your ${label} — probably fine, but it'll be breezy.`,
-  windcheater: (label) =>
-    `Strong winds during your ${label}. A windcheater would help.`,
-  scarf: (label) => `It'll feel cold during your ${label}. A scarf and warm layers advised.`,
-  hat: (label) => `Hat or cap recommended for your ${label}.`,
-  sunscreen: (label) => `Apply sunscreen before your ${label} — UV is high.`,
-  light_clothing: (label) => `Hot during your ${label}. Dress light, drink water.`,
-  all_clear: (label) => `Looking clear for your ${label}. Nothing extra needed.`,
+  umbrella_likely_windy: ({ label, prob }) =>
+    `Rain is likely during your ${label} (${pct(prob, 'a high chance')}). Carry an umbrella, but it's breezy — hold on tight.`,
+  umbrella_possible_windy: ({ label, prob }) =>
+    `There's a ${pct(prob, 'real chance')} of rain on your ${label}. Carry an umbrella, but it's breezy — hold on tight.`,
+  umbrella_unlikely_windy: ({ label, prob }) =>
+    `Low chance of rain${probParen(prob)} — probably fine, but it'll be breezy.`,
+
+  windcheater: ({ label }) => `Strong winds during your ${label}. A windcheater would help.`,
+  scarf: ({ label }) => `It'll feel cold during your ${label}. A scarf and warm layers advised.`,
+  hat: ({ label }) => `Hat or cap recommended for your ${label}.`,
+  sunscreen: ({ label }) => `Apply sunscreen before your ${label} — UV is high.`,
+  light_clothing: ({ label }) => `Very hot during your ${label}. Dress light, drink water.`,
+
+  // No-trigger fallback. We still embed the prob so the user sees that
+  // "looking clear" is a probabilistic statement, not a guarantee.
+  all_clear: ({ label, prob }) => {
+    if (prob == null) {
+      return `Looking clear for your ${label}. Nothing extra needed.`;
+    }
+    return `Looking clear for your ${label} (${pct(prob, 'low chance')} of rain). Nothing extra needed.`;
+  },
 };
+
+function pct(prob, fallback) {
+  if (prob == null || !Number.isFinite(prob)) return fallback;
+  return `${Math.round(prob)}% chance`;
+}
+
+function probSuffix(prob) {
+  if (prob == null || !Number.isFinite(prob)) return '';
+  return ` (${Math.round(prob)}% chance)`;
+}
+
+// Bare percentage in parens — used when "chance" appears earlier in the
+// sentence ("Low chance of rain (22%).") to avoid duplication.
+function probParen(prob) {
+  if (prob == null || !Number.isFinite(prob)) return '';
+  return ` (${Math.round(prob)}%)`;
+}
+
+function appendNote(note) {
+  return note ? ' ' + note : '';
+}
 
 // Safety → comfort → convenience.
 const PRIORITY = [
@@ -47,30 +81,33 @@ const PRIORITY = [
   'light_clothing',
 ];
 
-function renderItem(rec, label) {
+function renderItem(rec, ctx) {
   if (rec.item === 'umbrella') {
     const confidence = rec.confidence ?? 'possible';
-    if (rec.windyCaveat) {
-      const key = `umbrella_${confidence}_windy`;
-      return (TEMPLATES[key] ?? TEMPLATES.umbrella_possible_windy)(label);
-    }
-    const key = `umbrella_${confidence}`;
-    return (TEMPLATES[key] ?? TEMPLATES.umbrella_possible)(label, rec.note);
+    const suffix = rec.windyCaveat ? '_windy' : '';
+    const key = `umbrella_${confidence}${suffix}`;
+    const tpl = TEMPLATES[key] ?? TEMPLATES[`umbrella_possible${suffix}`];
+    return tpl({ ...ctx, note: rec.note });
   }
   const tpl = TEMPLATES[rec.item];
-  return tpl ? tpl(label) : null;
+  return tpl ? tpl(ctx) : null;
 }
 
 /**
  * @param {Array} recommendations  output of recommendEngine.generateRecommendations
  * @param {string} [label='trip']  the user's window label, e.g. "morning commute"
+ * @param {object} [aggregated]    aggregated window weather (used to pull the
+ *                                 raw probability for "all clear" + umbrella
+ *                                 templates so the number is ambient)
  * @returns {{ summary: string, sentences: string[] }}
  */
-export function generatePlainEnglish(recommendations = [], label = 'trip') {
+export function generatePlainEnglish(recommendations = [], label = 'trip', aggregated = null) {
   const active = recommendations.filter((r) => r.carry);
+  const prob = aggregated?.precipitation_probability ?? null;
+  const ctx = { label, prob };
 
   if (active.length === 0) {
-    const s = TEMPLATES.all_clear(label);
+    const s = TEMPLATES.all_clear(ctx);
     return { summary: s, sentences: [s] };
   }
 
@@ -82,7 +119,7 @@ export function generatePlainEnglish(recommendations = [], label = 'trip') {
 
   const sentences = [];
   for (const rec of ordered.slice(0, 3)) {
-    const s = renderItem(rec, label);
+    const s = renderItem(rec, ctx);
     if (s) sentences.push(s);
   }
 

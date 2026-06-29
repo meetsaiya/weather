@@ -12,6 +12,7 @@ import DaySummary from './DaySummary.jsx';
 import WindowCard, { windowStatus } from './WindowCard.jsx';
 import Skeleton from './Skeleton.jsx';
 import BriefBanner from './BriefBanner.jsx';
+import AccuracySummary from './AccuracySummary.jsx';
 import DeviationModal from '../Deviation/DeviationModal.jsx';
 import LocationPicker from '../Location/LocationPicker.jsx';
 import RoutineEditor from '../Routine/RoutineEditor.jsx';
@@ -76,8 +77,14 @@ export default function Dashboard() {
         location: routine.location,
         thresholdNudge,
       });
-      const english = generatePlainEnglish(recs, win.label);
-      return { window: win, recs, english, status: windowStatus(win) };
+      const english = generatePlainEnglish(recs, win.label, exposure.aggregatedWeather);
+      return {
+        window: win,
+        recs,
+        english,
+        status: windowStatus(win),
+        aggregated: exposure.aggregatedWeather,
+      };
     });
     // setDeviationsTick is referenced to register the dep; re-merge on modal close.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,6 +171,7 @@ export default function Dashboard() {
                 recs={c.recs}
                 english={c.english}
                 status={c.status}
+                aggregated={c.aggregated}
               />
             ))}
             {routine.windows.length === 0 && (
@@ -190,6 +198,8 @@ export default function Dashboard() {
               </button>
             )}
           </section>
+
+          <AccuracySummary />
         </>
       )}
 

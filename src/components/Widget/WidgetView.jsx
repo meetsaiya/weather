@@ -67,7 +67,7 @@ export default function WidgetView() {
     if (active.length === 0) {
       return { label: next.label, line: 'Looking clear.' };
     }
-    const english = generatePlainEnglish(recs, next.label);
+    const english = generatePlainEnglish(recs, next.label, exposure.aggregatedWeather);
     return { label: next.label, line: english.sentences[0] ?? active[0].reason };
   }, [weatherData, routine.windows, routine.location, thresholdNudge]);
 

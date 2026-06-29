@@ -56,7 +56,7 @@ export function buildDailyBrief({
     const active = recs
       .filter((r) => r.carry)
       .sort((a, b) => rankItem(a.item) - rankItem(b.item));
-    const english = generatePlainEnglish(recs, win.label);
+    const english = generatePlainEnglish(recs, win.label, exposure.aggregatedWeather);
     return { win, recs, active, english, topItem: active[0]?.item ?? null };
   });
 

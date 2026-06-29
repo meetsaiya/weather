@@ -108,7 +108,7 @@ export function testRecommendations() {
     tripDurationMins: 20,
   });
 
-  const english = generatePlainEnglish(recs, 'evening commute');
+  const english = generatePlainEnglish(recs, 'evening commute', mockAggregated);
 
   console.group('[testRecommendations] result');
   console.table(recs);
@@ -184,7 +184,7 @@ export async function testRecommendationsLive(arg, lon, label) {
     tripDurationMins: userWindow.tripDurationMins,
     location: { latitude: loc.latitude, longitude: loc.longitude },
   });
-  const english = generatePlainEnglish(recs, 'evening commute');
+  const english = generatePlainEnglish(recs, 'evening commute', exposure.aggregatedWeather);
 
   console.group(`[testRecommendationsLive] ${loc.label}`);
   console.log('window:', userWindow);
